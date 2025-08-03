@@ -193,14 +193,14 @@ export default function Home() {
   }
 
   const getMapCaseCounts = () => {
-    if (selectedState) {
-      return counties.map(county => ({
+    if (selectedState && counties.length > 0) {
+      return counties.map((county: County) => ({
         countyId: county.id,
         count: county.pendingCases
       }))
     }
 
-    return states.map(state => ({
+    return states.map((state: State) => ({
       stateCode: state.code,
       count: state.pendingCases
     }))

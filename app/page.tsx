@@ -1,103 +1,331 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import CaseUpload from '@/components/case-upload'
+import CaseList from '@/components/case-list'
+import CountySelector from '@/components/county-selector'
+import AppliedCasesView from '@/components/applied-cases-view'
+import { Button } from '@/components/ui/button'
+import { Plus, Map, List, FileText, CheckCircle, Filter } from 'lucide-react'
+import { CRIME_TYPES } from '@/lib/crime-types'
+
+// Import the full US map with all 50 states
+import FullUSMap from '@/components/full-us-map'
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [view, setView] = useState<'map' | 'list' | 'upload' | 'applied'>('map')
+  const [selectedState, setSelectedState] = useState<string | null>(null)
+  const [selectedCounty, setSelectedCounty] = useState<string | null>(null)
+  const [states, setStates] = useState([])
+  const [counties, setCounties] = useState([])
+  const [cases, setCases] = useState([])
+  const [allPendingCases, setAllPendingCases] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [showCountySelector, setShowCountySelector] = useState(false)
+  const [pendingCaseData, setPendingCaseData] = useState<any>(null)
+  const [pendingCrimeFilter, setPendingCrimeFilter] = useState<string>('')
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    fetchStates()
+    fetchAllPendingCases()
+  }, [])
+
+  useEffect(() => {
+    if (selectedState) {
+      fetchCounties(selectedState)
+    }
+  }, [selectedState])
+
+  useEffect(() => {
+    if (selectedCounty) {
+      fetchCases(selectedCounty)
+    } else if (selectedState) {
+      fetchCases(null, selectedState)
+    } else {
+      setCases([]) // Clear cases when no state/county selected
+    }
+  }, [selectedState, selectedCounty])
+
+  const fetchStates = async () => {
+    try {
+      const response = await fetch('/api/states')
+      const data = await response.json()
+      setStates(data)
+    } catch (error) {
+      console.error('Error fetching states:', error)
+    }
+  }
+
+  const fetchAllPendingCases = async () => {
+    try {
+      const response = await fetch('/api/cases?foiaStatus=PENDING')
+      const data = await response.json()
+      setAllPendingCases(data)
+    } catch (error) {
+      console.error('Error fetching all pending cases:', error)
+    }
+  }
+
+  const fetchCounties = async (stateCode: string) => {
+    try {
+      const response = await fetch(`/api/counties?stateCode=${stateCode}`)
+      const data = await response.json()
+      setCounties(data)
+    } catch (error) {
+      console.error('Error fetching counties:', error)
+    }
+  }
+
+  const fetchCases = async (countyId?: string | null, stateCode?: string) => {
+    setLoading(true)
+    try {
+      let url = '/api/cases?foiaStatus=PENDING'
+      if (countyId) {
+        url += `&countyId=${countyId}`
+      } else if (stateCode) {
+        url += `&stateCode=${stateCode}`
+      }
+
+      const response = await fetch(url)
+      const data = await response.json()
+      setCases(data)
+    } catch (error) {
+      console.error('Error fetching cases:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleUploadComplete = async (caseData: any) => {
+    setPendingCaseData(caseData)
+    setShowCountySelector(true)
+  }
+
+  const handleCountySelect = async (countyId: string) => {
+    if (pendingCaseData) {
+      try {
+        console.log('Creating case with county ID:', countyId)
+        const response = await fetch('/api/cases', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...pendingCaseData,
+            countyId
+          })
+        })
+
+        if (response.ok) {
+          alert('Case added successfully!')
+          setView('map')
+          fetchStates() // Refresh data
+          fetchAllPendingCases() // Refresh pending cases list
+          setShowCountySelector(false)
+          setPendingCaseData(null)
+        } else {
+          const errorData = await response.json()
+          console.error('Error response:', errorData)
+          alert('Error creating case. Please try again.')
+        }
+      } catch (error) {
+        console.error('Error creating case:', error)
+        alert('Error creating case. Please check the console for details.')
+      }
+    }
+  }
+
+  const handleCancelCountySelection = () => {
+    setShowCountySelector(false)
+    setPendingCaseData(null)
+  }
+
+  const handleStatusUpdate = () => {
+    // Refresh data after status update
+    fetchStates()
+    fetchAllPendingCases() // Refresh the all pending cases list
+    if (selectedCounty) {
+      fetchCases(selectedCounty)
+    } else if (selectedState) {
+      fetchCases(null, selectedState)
+    }
+  }
+
+  const handleStateClick = (stateCode: string) => {
+    setSelectedState(stateCode)
+    setSelectedCounty(null) // Clear county selection when selecting new state
+  }
+
+  const getMapCaseCounts = () => {
+    if (selectedState) {
+      return counties.map(county => ({
+        countyId: county.id,
+        count: county.pendingCases
+      }))
+    }
+
+    return states.map(state => ({
+      stateCode: state.code,
+      count: state.pendingCases
+    }))
+  }
+
+  const getFilteredPendingCases = () => {
+    return allPendingCases.filter(case_ => {
+      const crimeMatch = pendingCrimeFilter ? case_.crimeType === pendingCrimeFilter : true
+      return crimeMatch
+    })
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <FileText className="h-8 w-8 text-primary mr-3" />
+              <h1 className="text-xl font-semibold">FOIA Request Tracker</h1>
+            </div>
+            <nav className="flex space-x-4">
+              <Button
+                variant={view === 'map' ? 'default' : 'ghost'}
+                onClick={() => setView('map')}
+              >
+                <Map className="h-4 w-4 mr-2" />
+                Map View
+              </Button>
+              <Button
+                variant={view === 'list' ? 'default' : 'ghost'}
+                onClick={() => setView('list')}
+              >
+                <List className="h-4 w-4 mr-2" />
+                Pending Cases
+              </Button>
+              <Button
+                variant={view === 'applied' ? 'default' : 'ghost'}
+                onClick={() => setView('applied')}
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Applied Database
+              </Button>
+              <Button
+                variant={view === 'upload' ? 'default' : 'ghost'}
+                onClick={() => setView('upload')}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Case
+              </Button>
+            </nav>
+          </div>
         </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {view === 'map' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>FOIA Request Status Map</CardTitle>
+                <CardDescription>
+                  Click on a state to view county-level data. Numbers indicate pending FOIA requests.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <FullUSMap
+                  caseCounts={getMapCaseCounts()}
+                  onStateClick={handleStateClick}
+                  onCountyClick={setSelectedCounty}
+                />
+              </CardContent>
+            </Card>
+
+            {selectedState && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Pending Cases in {selectedState}</CardTitle>
+                  <CardDescription>
+                    {cases.length} cases pending FOIA requests
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <div className="text-center py-8">Loading cases...</div>
+                  ) : (
+                    <CaseList cases={cases} onStatusUpdate={handleStatusUpdate} />
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {view === 'list' && (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>All Pending FOIA Requests</CardTitle>
+                    <CardDescription>
+                      {getFilteredPendingCases().length} of {allPendingCases.length} cases pending FOIA requests across all states
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Filter className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">Filter Cases</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Filter by Crime Type:</label>
+                      <select
+                        value={pendingCrimeFilter}
+                        onChange={(e) => setPendingCrimeFilter(e.target.value)}
+                        className="w-full p-2 border rounded-md"
+                      >
+                        <option value="">All Crime Types</option>
+                        {CRIME_TYPES.map(type => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setPendingCrimeFilter('')}
+                        className="w-full"
+                      >
+                        Clear Filter
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <CaseList cases={getFilteredPendingCases()} onStatusUpdate={handleStatusUpdate} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {view === 'upload' && (
+          <CaseUpload onUploadComplete={handleUploadComplete} />
+        )}
+
+        {view === 'applied' && (
+          <AppliedCasesView />
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      {showCountySelector && (
+        <CountySelector
+          onSelect={handleCountySelect}
+          onCancel={handleCancelCountySelection}
+        />
+      )}
     </div>
-  );
+  )
 }

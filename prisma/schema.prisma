@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model State {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String   @unique @db.VarChar(2)
+  counties  County[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model County {
+  id        String   @id @default(cuid())
+  name      String
+  stateId   String
+  state     State    @relation(fields: [stateId], references: [id])
+  cases     Case[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, stateId])
+  @@index([stateId])
+}
+
+model Case {
+  id             String         @id @default(cuid())
+  caseNumber     String?
+  crimeType      CrimeType
+  description    String?
+  dateOccurred   DateTime?
+  countyId       String
+  county         County         @relation(fields: [countyId], references: [id])
+  foiaStatus     FoiaStatus     @default(PENDING)
+  screenshotPath String?
+  extractedData  Json?
+  appliedDate    DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([countyId])
+  @@index([foiaStatus])
+  @@index([crimeType])
+}
+
+enum CrimeType {
+  // Violent Crimes
+  MURDER
+  MANSLAUGHTER
+  ASSAULT
+  BATTERY
+  AGGRAVATED_ASSAULT
+  DOMESTIC_VIOLENCE
+  CHILD_ABUSE
+  ELDER_ABUSE
+  KIDNAPPING
+  SEXUAL_ASSAULT
+  RAPE
+  ROBBERY
+  ARMED_ROBBERY
+  
+  // Property Crimes
+  THEFT
+  PETTY_THEFT
+  GRAND_THEFT
+  BURGLARY
+  BREAKING_AND_ENTERING
+  VANDALISM
+  ARSON
+  FRAUD
+  EMBEZZLEMENT
+  FORGERY
+  IDENTITY_THEFT
+  CREDIT_CARD_FRAUD
+  
+  // Drug Related
+  DRUG_POSSESSION
+  DRUG_TRAFFICKING
+  DRUG_MANUFACTURING
+  DUI_DWI
+  PUBLIC_INTOXICATION
+  
+  // Traffic & Vehicle
+  POLICE_CHASE
+  ELUDING_POLICE
+  RECKLESS_DRIVING
+  HIT_AND_RUN
+  DRIVING_WITHOUT_LICENSE
+  VEHICULAR_MANSLAUGHTER
+  
+  // Public Order
+  DISORDERLY_CONDUCT
+  DISTURBING_PEACE
+  TRESPASSING
+  LOITERING
+  PROSTITUTION
+  WEAPONS_VIOLATION
+  FIREARM_POSSESSION
+  
+  // Against Government
+  ATTACKING_OFFICER
+  RESISTING_ARREST
+  OBSTRUCTION_OF_JUSTICE
+  CONTEMPT_OF_COURT
+  TAX_EVASION
+  BRIBERY
+  PERJURY
+  
+  // Cybercrime
+  CYBERCRIME
+  HACKING
+  ONLINE_FRAUD
+  
+  // Other
+  PAROLE_VIOLATION
+  PROBATION_VIOLATION
+  WARRANT
+  FAILURE_TO_APPEAR
+  OTHER
+}
+
+enum FoiaStatus {
+  PENDING
+  APPLIED
+}

@@ -14,14 +14,48 @@ import { CRIME_TYPES } from '@/lib/crime-types'
 // Import the full US map with all 50 states
 import FullUSMap from '@/components/full-us-map'
 
+interface State {
+  id: string
+  code: string
+  name: string
+  pendingCases: number
+}
+
+interface County {
+  id: string
+  name: string
+  stateId: string
+  pendingCases: number
+}
+
+interface Case {
+  id: string
+  caseNumber?: string
+  crimeType: string
+  description?: string
+  dateOccurred?: string
+  foiaStatus: string
+  appliedDate?: string
+  screenshotPath?: string
+  county: {
+    id: string
+    name: string
+    state: {
+      name: string
+      code: string
+    }
+  }
+  createdAt: string
+}
+
 export default function Home() {
   const [view, setView] = useState<'map' | 'list' | 'upload' | 'applied'>('map')
   const [selectedState, setSelectedState] = useState<string | null>(null)
   const [selectedCounty, setSelectedCounty] = useState<string | null>(null)
-  const [states, setStates] = useState([])
-  const [counties, setCounties] = useState([])
-  const [cases, setCases] = useState([])
-  const [allPendingCases, setAllPendingCases] = useState([])
+  const [states, setStates] = useState<State[]>([])
+  const [counties, setCounties] = useState<County[]>([])
+  const [cases, setCases] = useState<Case[]>([])
+  const [allPendingCases, setAllPendingCases] = useState<Case[]>([])
   const [loading, setLoading] = useState(false)
   const [showCountySelector, setShowCountySelector] = useState(false)
   const [pendingCaseData, setPendingCaseData] = useState<any>(null)
